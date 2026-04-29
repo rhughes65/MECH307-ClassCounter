@@ -1,138 +1,204 @@
 #include <Stepper.h>
 
 const int stepsPerRevolution = 2048;
-const int stepsPerPosition = 205;   // adjust if needed
-const int zeroOffsetSteps = 15;     // adjust to align displayed 0
+const int stepsPerPosition = 205;
+const int zeroOffsetSteps = 15;
 
-Stepper myStepper(stepsPerRevolution, 7, 5, 6, 4);
-
-const int limitSwitchPin = 2;
+// Speeds
 const int motorSpeed = 10;
+const int homingSpeed = 5;
+const int homingDelay = 8;
 
-int currentPosition = 0;
-bool homed = false;
-int direction = 1;   // 1 = up, -1 = down
+// Tens motor
+Stepper tensStepper(stepsPerRevolution, 6, 8, 7, 9);
+const int tensSwitchPin = 2;
+
+// Ones motor
+Stepper onesStepper(stepsPerRevolution, 10, 12, 11, 13);
+const int onesSwitchPin = 3;
+
+// Current display value
+int currentNumber = 0;
+int tens = 0;
+int ones = 0;
 
 void setup() {
   Serial.begin(9600);
-  myStepper.setSpeed(motorSpeed);
-  pinMode(limitSwitchPin, INPUT_PULLUP);
 
-  homeToZero();
+  tensStepper.setSpeed(motorSpeed);
+  onesStepper.setSpeed(motorSpeed);
+
+  pinMode(tensSwitchPin, INPUT_PULLUP);
+  pinMode(onesSwitchPin, INPUT_PULLUP);
+
+  Serial.println("Starting homing...");
+
+  homeMotor(tensStepper, tensSwitchPin, "TENS");
+  homeMotor(onesStepper, onesSwitchPin, "ONES");
+
+  currentNumber = 0;
+  tens = 0;
+  ones = 0;
 
   Serial.println("Homing complete.");
-  Serial.println("Enter a number from 0 to 9.");
+  Serial.println("Enter a number from 0 to 99:");
 }
 
 void loop() {
   if (Serial.available() > 0) {
-    int requestedNumber = Serial.parseInt();
+    int targetNumber = Serial.parseInt();
 
     while (Serial.available() > 0) {
       Serial.read();
     }
 
-    if (requestedNumber >= 0 && requestedNumber <= 9) {
-      Serial.print("Received target: ");
-      Serial.println(requestedNumber);
+    if (targetNumber >= 0 && targetNumber <= 99) {
+      Serial.print("Target received: ");
+      Serial.println(targetNumber);
 
-      moveToPosition(requestedNumber);
+      moveToNumber(targetNumber);
 
-      Serial.print("Now at position: ");
-      Serial.println(currentPosition);
-      Serial.println("Enter another number from 0 to 9.");
+      Serial.print("Now displaying: ");
+      if (currentNumber < 10) {
+        Serial.print("0");
+      }
+      Serial.println(currentNumber);
+
+      Serial.println("Enter another number from 0 to 99:");
     } else {
-      Serial.println("Invalid input. Enter a number from 0 to 9.");
+      Serial.println("Invalid input. Enter a number from 0 to 99:");
     }
   }
 }
 
-void homeToZero() {
-  Serial.println("Searching for 0...");
+// ================= COUNTING =================
 
-  // Move until switch is pressed
-  while (digitalRead(limitSwitchPin) == HIGH) {
-    myStepper.step(1);
-    delay(3);
-  }
-
-  Serial.println("Switch hit.");
-
-  // Back off until switch is released
-  while (digitalRead(limitSwitchPin) == LOW) {
-    myStepper.step(-1);
-    delay(3);
-  }
-
-  // Move forward slightly to align visual 0
-  for (int i = 0; i < zeroOffsetSteps; i++) {
-    myStepper.step(1);
-    delay(3);
-  }
-
-  currentPosition = 0;
-  homed = true;
-  direction = 1;
-
-  Serial.println("Zero aligned.");
-}
-
-void moveToPosition(int targetPosition) {
-  if (!homed) {
-    Serial.println("Not homed yet.");
+void moveToNumber(int targetNumber) {
+  if (targetNumber == currentNumber) {
+    Serial.println("Already at that number.");
     return;
   }
 
-  if (targetPosition == currentPosition) {
-    Serial.println("Already at that position.");
-    return;
-  }
+  if (targetNumber > currentNumber) {
+    Serial.println("Counting UP");
 
-  // Decide direction based on next requested number
-  if (targetPosition > currentPosition) {
-    direction = 1;
-  } else {
-    direction = -1;
-  }
+    while (currentNumber < targetNumber) {
+      countUpOne();
+      currentNumber++;
 
-  Serial.print("Direction: ");
-  if (direction == 1) {
-    Serial.println("UP");
-  } else {
-    Serial.println("DOWN");
-  }
+      Serial.print("Display: ");
+      if (currentNumber < 10) {
+        Serial.print("0");
+      }
+      Serial.println(currentNumber);
 
-  // Count step-by-step through positions
-  while (currentPosition != targetPosition) {
-    int nextPosition = currentPosition + direction;
-
-    moveOnePosition(direction);
-
-    // If homing occurred during motion, stop
-    if (!homed) {
-      return;
+      delay(500);
     }
+  } else {
+    Serial.println("Counting DOWN");
 
-    currentPosition = nextPosition;
+    while (currentNumber > targetNumber) {
+      countDownOne();
+      currentNumber--;
 
-    Serial.print("At position: ");
-    Serial.println(currentPosition);
+      Serial.print("Display: ");
+      if (currentNumber < 10) {
+        Serial.print("0");
+      }
+      Serial.println(currentNumber);
 
-    delay(500);
+      delay(500);
+    }
   }
 }
 
-void moveOnePosition(int stepDirection) {
+void countUpOne() {
+  if (ones < 9) {
+    moveOneDigit(onesStepper, onesSwitchPin, 1, "ONES");
+    ones++;
+  } else {
+    // ones rolls from 9 to 0
+    moveOneDigit(onesStepper, onesSwitchPin, 1, "ONES");
+    ones = 0;
+
+    // tens increases by 1
+    if (tens < 9) {
+      moveOneDigit(tensStepper, tensSwitchPin, 1, "TENS");
+      tens++;
+    }
+  }
+}
+
+void countDownOne() {
+  if (ones > 0) {
+    moveOneDigit(onesStepper, onesSwitchPin, -1, "ONES");
+    ones--;
+  } else {
+    // ones rolls from 0 to 9
+    moveOneDigit(onesStepper, onesSwitchPin, -1, "ONES");
+    ones = 9;
+
+    // tens decreases by 1
+    if (tens > 0) {
+      moveOneDigit(tensStepper, tensSwitchPin, -1, "TENS");
+      tens--;
+    }
+  }
+}
+
+// ================= MOTOR STEP =================
+
+void moveOneDigit(Stepper &motor, int switchPin, int dir, String name) {
   for (int i = 0; i < stepsPerPosition; i++) {
-    // If switch is hit, re-home to 0
-    if (digitalRead(limitSwitchPin) == LOW) {
-      Serial.println("Switch hit during motion. Re-homing...");
-      homed = false;
-      homeToZero();
+    if (digitalRead(switchPin) == LOW) {
+      Serial.print(name);
+      Serial.println(" switch hit unexpectedly. Re-homing...");
+
+      homeMotor(motor, switchPin, name);
+
+      if (name == "ONES") {
+        ones = 0;
+      } else if (name == "TENS") {
+        tens = 0;
+      }
+
+      currentNumber = tens * 10 + ones;
       return;
     }
 
-    myStepper.step(stepDirection);
+    motor.step(dir);
     delay(3);
   }
+}
+
+// ================= HOMING =================
+
+void homeMotor(Stepper &motor, int switchPin, String name) {
+  Serial.print("Homing ");
+  Serial.println(name);
+
+  motor.setSpeed(homingSpeed);
+
+  while (digitalRead(switchPin) == HIGH) {
+    motor.step(1);
+    delay(homingDelay);
+  }
+
+  Serial.print(name);
+  Serial.println(" switch hit");
+
+  while (digitalRead(switchPin) == LOW) {
+    motor.step(-1);
+    delay(homingDelay);
+  }
+
+  for (int i = 0; i < zeroOffsetSteps; i++) {
+    motor.step(1);
+    delay(homingDelay);
+  }
+
+  Serial.print(name);
+  Serial.println(" zero aligned");
+
+  motor.setSpeed(motorSpeed);
 }
