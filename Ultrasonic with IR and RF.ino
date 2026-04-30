@@ -5,7 +5,7 @@
 #include "IRremote.h"
 
 // Define NRF24L01 radio object with CE and CSN pins
-RF24 radio(5, 6); // CE = 8, CSN = 9
+RF24 radio(3, 4); // CE = 3, CSN = 4
 // Define the pipe address (must be the same as the receiver)
 const byte address[6] = "00001";
 
@@ -14,8 +14,8 @@ int receiver = 2;
 volatile int interrupted=0;
 
 // ================= ULTRASONIC =================
-const int trigPin = 48;
-const int echoPin = 49;
+const int trigPin = 22;
+const int echoPin = 23;
 
 // ================= ONES STEPPER ONLY =================
 const int stepsPerRevolution = 2048;
@@ -26,9 +26,9 @@ const int motorSpeed = 10;
 const int homingSpeed = 5;
 const int homingDelay = 8;
 
-// Ones motor pins: 10, 11, 12, 13
-Stepper onesStepper(stepsPerRevolution, 10, 12, 11, 13);
-const int onesSwitchPin = 3;
+// Ones motor pins: 6, 7, 8, 9
+Stepper onesStepper(stepsPerRevolution, 9,8,7, 6);
+const int onesSwitchPin = 37;
 
 int ones = 0;
 int currentNumber = 0;
