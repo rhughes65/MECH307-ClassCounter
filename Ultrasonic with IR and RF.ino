@@ -124,10 +124,10 @@ if (IrReceiver.decode()) {
 
       if (difference < neg && count >= 1) {
         count--;
-        if buzz>0{
+        if (buzz>0){
         buzz--;
         }
-        if buzz=0 {
+        if (buzz=0) {
           buzz=5;
         }
       }
