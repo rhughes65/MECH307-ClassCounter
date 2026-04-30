@@ -10,7 +10,7 @@ RF24 radio(5, 6); // CE = 8, CSN = 9
 const byte address[6] = "00001";
 
 //================= IR =======================
-int receiver = 7;
+int receiver = 2;
 volatile int interrupted=0;
 
 // ================= ULTRASONIC =================
@@ -57,7 +57,6 @@ decode_results results;
 struct RF_Data {
   int count;
   int buzz;
-  int test;
   //Put other variables in here that you want to pass via RF
 };
 
@@ -71,7 +70,7 @@ void setup() {
   pinMode(onesSwitchPin, INPUT_PULLUP);
 
   Serial.println("Starting ONES homing...");
-  homeMotor(onesStepper, onesSwitchPin, "ONES");
+  //homeMotor(onesStepper, onesSwitchPin, "ONES");
 
   ones = 0;
   currentNumber = 0;
@@ -86,17 +85,22 @@ void setup() {
   radio.setDataRate(RF24_250KBPS); // Lower data rate = longer range
   radio.openWritingPipe(address); // Set transmitter address
   radio.stopListening();          // Set as transmitter
-  irrecv.enableIRIn(); // Start the receiver
-  attachInterrupt(0, ir_interrupt, CHANGE); 
+  IrReceiver.begin(receiver, ENABLE_LED_FEEDBACK); // Start the receiver
 }
 
-void ir_interrupt() {
-if (irrecv.decode(&results)) {
-if(results.value == 4294967295) { reset(); }
-irrecv.resume();
-}
+
 
 void loop() {
+if (IrReceiver.decode()) {
+  uint32_t code = IrReceiver.decodedIRData.decodedRawData;
+  Serial.print("IR received: 0x");
+  Serial.println(code, HEX);
+  
+  if (code == 0xE916FF00) reset();
+  
+  IrReceiver.resume();
+}
+
   distanceint = measure();
   Serial.println(distanceint);
   if (distanceint < 5 || distanceint > 150) {
@@ -133,27 +137,30 @@ if (buzz==6){
 
       if (count != previousCount) {
         moveToNumber(count);
+        RF_Data data;
+
+  // Read joystick values
+  data.count = count;
+  data.buzz = buzz;
+  // Send data via NRF24L01
+  bool success = radio.write(&data, sizeof(data));
+  if (!success) {
+  Serial.println("TX failed");
       }
     }
 
     newperson = 0;
   }
-RF_Data data;
 
-  // Read joystick values
-  data.count = count;
-  data.buzz = buzz;
-  data.test=test;
-  // Send data via NRF24L01
-  bool success = radio.write(&data, sizeof(data));
-  if (!success) {
-  Serial.println("TX failed");
 }
   Serial.print("Count: ");
   Serial.println(count);
 
-  delay(50);
+  
 }
+
+
+
 
 // ================= ONES COUNTING =================
 
@@ -260,7 +267,7 @@ int measure() {
     sum += distance[j];
   }
 
-  average = sum / 2.5;
+  average = sum / 5;
   return average;
 }
 
