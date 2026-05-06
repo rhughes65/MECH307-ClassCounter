@@ -14,7 +14,7 @@ void setup() {
 
   motorSetup();
   // encoderSetup();
-  tofSetup();
+  // tofSetup();
   counterSetup();
 
   // Initialize Seesaw
@@ -52,7 +52,7 @@ void loop() {
     while(!ss.digitalRead(BUTTON_B)) delay(10);
   }
 
-  tofLoop();
+  // tofLoop();
 
   // Small delay to keep the loop stable
   delay(10);
