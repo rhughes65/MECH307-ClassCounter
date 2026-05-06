@@ -15,6 +15,7 @@ void setup() {
   motorSetup();
   // encoderSetup();
   tofSetup();
+  counterSetup();
 
   // Initialize Seesaw
   if (!ss.begin(0x50)) {
@@ -61,6 +62,10 @@ void setup() {
 //   setEncCount(0);
 //   delay(100);
 // }
+
+// Declare sensor readings for people counter
+VL53L0X_RangingMeasurementData_t m1, m2, m3;
+
 void loop() {
   // We check if the button is LOW because INPUT_PULLUP 
   // means the pin is HIGH by default and LOW when pressed.
@@ -77,10 +82,10 @@ void loop() {
   }
 
   if (buttonBPressed) {
-    Serial.println("Button B: Rotating -100 steps");
-    step(-100);
+    Serial.println("Button B: Reset counter");
+    resetCounter();
     
-    // Optional: Wait until button is released
+    // Wait until button is released
     while(!ss.digitalRead(BUTTON_B)) delay(10);
   }
 
