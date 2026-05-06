@@ -1,15 +1,14 @@
 // Pins for ULN2003
 const int motorPins[] = {10, 11, 12, 13};
 
-// Volatile variables for ISR communication
-volatile int stepIndex = 0;
-volatile int motorDirection = 1;  // 1 for Forward, -1 for Reverse
-volatile bool isMoving = false;    // Control state
+// Volatile variables for ISR
+volatile int  mStepIdx = 0;
+volatile int  mDir = 1; 
+volatile bool mRunning = false;
+volatile long stepsToTake = 0; // The "Step Counter"
 
-// 4-step sequence for 28BYJ-48
-const byte motorSequence[4] = {
-  0b1000, 0b0100, 0b0010, 0b0001 
-};
+// 4-step sequence
+const byte mSeq[4] = { 0b1000, 0b0100, 0b0010, 0b0001 };
 
 void motorSetup() {
   for (int i = 0; i < 4; i++) pinMode(motorPins[i], OUTPUT);
@@ -17,44 +16,52 @@ void motorSetup() {
   // --- TIMER 1 SETUP ---
   cli();
   TCCR1A = 0; TCCR1B = 0; TCNT1 = 0;
-  OCR1A = 609; // 12 RPM
+  OCR1A = 609; // 12 RPM @ 2048 steps/rev
   TCCR1B |= (1 << WGM12); 
   TCCR1B |= (1 << CS11) | (1 << CS10); // 64 Prescaler
   TIMSK1 |= (1 << OCIE1A);
   sei();
 }
 
-// --- Control Functions ---
+// --- The New "Library-Style" Function ---
+void step(long steps) {
+  if (steps == 0) return;
+
+  // Set direction based on positive/negative input
+  mDir = (steps > 0) ? 1 : -1;
+  
+  // Set the counter (use absolute value)
+  stepsToTake = (steps > 0) ? steps : -steps;
+  
+  mRunning = true;
+}
 
 void stopMotor() {
-  isMoving = false;
-  // Safety: Turn off all coils to prevent overheating
+  mRunning = false;
+  stepsToTake = 0;
+  // Safety: De-energize coils
   for (int i = 0; i < 4; i++) digitalWrite(motorPins[i], LOW);
-}
-
-void startForward() {
-  motorDirection = 1;
-  isMoving = true;
-}
-
-void startReverse() {
-  motorDirection = -1;
-  isMoving = true;
 }
 
 // --- The ISR ---
 ISR(TIMER1_COMPA_vect) {
-  if (!isMoving) return; // Do nothing if motor is stopped
+  if (!mRunning) return;
 
-  // Apply the bit pattern
-  for (int i = 0; i < 4; i++) {
-    digitalWrite(motorPins[i], (motorSequence[stepIndex] >> i) & 0x01);
+  if (stepsToTake > 0) {
+    // 1. Move the motor
+    for (int i = 0; i < 4; i++) {
+      digitalWrite(motorPins[i], (mSeq[mStepIdx] >> i) & 0x01);
+    }
+
+    // 2. Update the index
+    mStepIdx += mDir;
+    if (mStepIdx > 3) mStepIdx = 0;
+    if (mStepIdx < 0) mStepIdx = 3;
+
+    // 3. Decrement the counter
+    stepsToTake--;
+  } else {
+    // 4. Reach zero? Shutdown.
+    stopMotor();
   }
-  
-  // Calculate next step index
-  stepIndex += motorDirection;
-
-  // Handle wrap-around for both directions
-  if (stepIndex > 3) stepIndex = 0;
-  if (stepIndex < 0) stepIndex = 3;
 }

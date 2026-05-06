@@ -7,9 +7,10 @@ const int encPinB = 3;
 volatile long encCount = 0;
 long lastReportedPos = 0;
 
-void encoderSetup() {
-  Serial.begin(9600);
+long getEncCount() { return encCount; }
+void setEncCount(long newVal) { encCount=newVal; }
 
+void encoderSetup() {
   // Set up pins with internal pullups 
   // (Encoders usually pull to ground, so we need a default HIGH)
   pinMode(encPinA, INPUT_PULLUP);
