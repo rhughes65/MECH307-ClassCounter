@@ -1,40 +1,60 @@
-#include <Stepper.h>
-#include <EEPROM.h>
+// Pins for ULN2003
+const int motorPins[] = {10, 11, 12, 13};
 
-#define MOTOR_STEPS_TO_SAVE 10
+// Volatile variables for ISR communication
+volatile int stepIndex = 0;
+volatile int motorDirection = 1;  // 1 for Forward, -1 for Reverse
+volatile bool isMoving = false;    // Control state
 
-const int stepsPerRevolution = 2048;
-const int eepromAddress = 0; // Starting memory address
-
-Stepper myStepper(stepsPerRevolution, 4, 6, 5, 7);
-
-int currentPosition = 0;
+// 4-step sequence for 28BYJ-48
+const byte motorSequence[4] = {
+  0b1000, 0b0100, 0b0010, 0b0001 
+};
 
 void motorSetup() {
-  myStepper.setSpeed(12);
+  for (int i = 0; i < 4; i++) pinMode(motorPins[i], OUTPUT);
 
-  // 1. Retrieve the last saved position from EEPROM
-  EEPROM.get(eepromAddress, currentPosition);
-
-  // 2. If we weren't at zero when power was lost, go back to zero
-  if (currentPosition != 0) {
-    Serial.print("Recovering from power loss. Returning ");
-    Serial.print(currentPosition);
-    Serial.println(" steps to zero.");
-    
-    // Step negatively to return to home
-    myStepper.step(-currentPosition);
-    
-    // Reset position and update EEPROM to zero
-    currentPosition = 0;
-    EEPROM.put(eepromAddress, currentPosition);
-  }
-
-  Serial.println("System Ready. Beginning rotation...");
+  // --- TIMER 1 SETUP ---
+  cli();
+  TCCR1A = 0; TCCR1B = 0; TCNT1 = 0;
+  OCR1A = 609; // 12 RPM
+  TCCR1B |= (1 << WGM12); 
+  TCCR1B |= (1 << CS11) | (1 << CS10); // 64 Prescaler
+  TIMSK1 |= (1 << OCIE1A);
+  sei();
 }
 
-void motorLoop() {
-  myStepper.step(MOTOR_STEPS_TO_SAVE);
-  currentPosition+=MOTOR_STEPS_TO_SAVE;
-  EEPROM.put(eepromAddress, currentPosition);
+// --- Control Functions ---
+
+void stopMotor() {
+  isMoving = false;
+  // Safety: Turn off all coils to prevent overheating
+  for (int i = 0; i < 4; i++) digitalWrite(motorPins[i], LOW);
+}
+
+void startForward() {
+  motorDirection = 1;
+  isMoving = true;
+}
+
+void startReverse() {
+  motorDirection = -1;
+  isMoving = true;
+}
+
+// --- The ISR ---
+ISR(TIMER1_COMPA_vect) {
+  if (!isMoving) return; // Do nothing if motor is stopped
+
+  // Apply the bit pattern
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(motorPins[i], (motorSequence[stepIndex] >> i) & 0x01);
+  }
+  
+  // Calculate next step index
+  stepIndex += motorDirection;
+
+  // Handle wrap-around for both directions
+  if (stepIndex > 3) stepIndex = 0;
+  if (stepIndex < 0) stepIndex = 3;
 }

@@ -1,9 +1,20 @@
 void setup() {
-  // put your setup code here, to run once:
   motorSetup();
+  encoderSetup();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  motorLoop();
+  encoderLoop();
+  // Example Usage:
+  startForward();
+  // delay(2048); // Spin forward for roughly one revolution
+  
+  // stopMotor();
+  // delay(1000); // Wait a second
+  
+  // startReverse();
+  // delay(2048); // Spin back
+  
+  // stopMotor();
+  // delay(5000); // Wait 5 seconds
 }
