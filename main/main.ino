@@ -29,43 +29,6 @@ void setup() {
   ss.pinMode(BUTTON_B, INPUT_PULLUP);
 }
 
-// void loop() {
-//   encoderLoop();
-//   // Example Usage:
-//   startForward();
-//   // delay(2048); // Spin forward for roughly one revolution
-  
-//   // stopMotor();
-//   // delay(1000); // Wait a second
-  
-//   // startReverse();
-//   // delay(2048); // Spin back
-  
-//   // stopMotor();
-//   // delay(5000); // Wait 5 seconds
-// }
-
-// void loop() {
-//   // // Move 2048 steps (1 full revolution) forward
-//   // step(2048);
-  
-//   // // Unlike Stepper.h, this delay doesn't stop the motor. 
-//   // // The motor is spinning IN THE BACKGROUND while we wait here.
-//   // delay(10000); 
-  
-//   // // Move half a revolution backward
-//   // step(-1024);
-  
-//   // delay(10000);
-
-//   step(getEncCount()*10);
-//   setEncCount(0);
-//   delay(100);
-// }
-
-// Declare sensor readings for people counter
-VL53L0X_RangingMeasurementData_t m1, m2, m3;
-
 void loop() {
   // We check if the button is LOW because INPUT_PULLUP 
   // means the pin is HIGH by default and LOW when pressed.
