@@ -22,8 +22,8 @@ void RFsetup() {
 
 void RFloop() {
   RF_Data data;
-  // Read joystick values
-  data.count = count;
+  // Send current occupancy and buzz state
+  data.count = getPeopleInRoom();
   data.buzz = buzz;
   // Send data via NRF24L01
   bool success = radio.write(&data, sizeof(data));

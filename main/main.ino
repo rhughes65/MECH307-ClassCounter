@@ -1,5 +1,8 @@
 #include "Adafruit_seesaw.h"
 
+// Global variables used by multiple modules
+int buzz = 0;
+
 // Initialize the Seesaw object
 Adafruit_seesaw ss;
 

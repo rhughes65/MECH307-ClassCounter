@@ -20,8 +20,11 @@ if (IrReceiver.decode()) {
   
   IrReceiver.resume();
 }
+}
 
 void reset(){
-  count=0;
+  // Reset the people counter
+  resetCounter();
+  // Reset the buzz state
   buzz=0;
 }
