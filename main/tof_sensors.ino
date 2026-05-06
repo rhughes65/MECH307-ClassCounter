@@ -70,25 +70,34 @@ void tofSetup() {
 }
 
 void tofLoop() {
-  VL53L0X_RangingMeasurementData_t m1,m2, m3;
+  VL53L0X_RangingMeasurementData_t m1, m2, m3;
   
   lox1.rangingTest(&m1, false);
   lox2.rangingTest(&m2, false);
   lox3.rangingTest(&m3, false);
   // lox4.rangingTest(&m4, false);
 
+  // Extract distance values
+  int d1 = (m1.RangeStatus != 4) ? m1.RangeMilliMeter : 0;
+  int d2 = (m2.RangeStatus != 4) ? m2.RangeMilliMeter : 0;
+  int d3 = (m3.RangeStatus != 4) ? m3.RangeMilliMeter : 0;
+
   // Data format: time, val1, val2, val3, val4
   Serial.print(millis());
   Serial.print(F(", "));
   
-  Serial.print((m1.RangeStatus != 4) ? m1.RangeMilliMeter : 0);
+  Serial.print(d1);
   Serial.print(F(", "));
-  Serial.print((m2.RangeStatus != 4) ? m2.RangeMilliMeter : 0);
+  Serial.print(d2);
   Serial.print(F(", "));
-  Serial.print((m3.RangeStatus != 4) ? m3.RangeMilliMeter : 0);
+  Serial.print(d3);
   // Serial.print(F(", "));
   // Serial.print((m4.RangeStatus != 4) ? m4.RangeMilliMeter : 0);
 
   Serial.println("");
+
+  // Update people counter with sensor data
+  updateCounter(d1, d2, d3);
+
   delay(100);
 }
