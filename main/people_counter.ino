@@ -17,8 +17,8 @@ int distances3[WINDOW_SIZE];
 int idx1 = 0, idx2 = 0, idx3 = 0;
 
 // Logic Thresholds (adjust these based on your doorway)
-#define ARM_THRESHOLD 800     // Distance > this means "clear"
-#define TRIGGER_THRESHOLD 400   // Distance <= this means "person detected"
+#define ARM_THRESHOLD 1500     // Distance > this means "clear" (falling from ~2000)
+#define TRIGGER_THRESHOLD 1000   // Distance <= this means "person detected"
 #define COOLDOWN 1500           // ms between counts
 
 // State tracking
@@ -106,17 +106,21 @@ void updateCounter(int d1, int d2, int d3) {
   bool fallingEdge2 = (lastMedian2 > TRIGGER_THRESHOLD && m2 <= TRIGGER_THRESHOLD);
   bool fallingEdge3 = (lastMedian3 > TRIGGER_THRESHOLD && m3 <= TRIGGER_THRESHOLD);
   
+  if (fallingEdge1) Serial.println("FE1");
+  if (fallingEdge2) Serial.println("FE2");
+  if (fallingEdge3) Serial.println("FE3");
+
   bool cooldownOver = (now - lastTriggerTime >= COOLDOWN);
 
   if (cooldownOver) {
     #if NUM_TOF_SENSORS == 2
     // 2 Sensors: Check if sensor 1 triggers before sensor 2
-    if (armed1 && fallingEdge1 && !armed2) {
+    if (armed1 && fallingEdge1 && armed2) {
       peopleIn++; totalPeople++;
       lastTriggerTime = now;
       armed1 = armed2 = false;
       Serial.println("ENTRY (S1->S2)");
-    } else if (armed2 && fallingEdge2 && !armed1) {
+    } else if (armed2 && fallingEdge2 && armed1) {
       if (peopleIn > 0) peopleIn--;
       lastTriggerTime = now;
       armed1 = armed2 = false;
@@ -124,12 +128,12 @@ void updateCounter(int d1, int d2, int d3) {
     }
     #else
     // 3 Sensors: More robust directional detection
-    if (armed1 && fallingEdge1 && !armed3) {
+    if (armed1 && fallingEdge1 && armed3) {
       peopleIn++; totalPeople++;
       lastTriggerTime = now;
       armed1 = armed2 = armed3 = false;
       Serial.println("ENTRY (S1 lead)");
-    } else if (armed3 && fallingEdge3 && !armed1) {
+    } else if (armed3 && fallingEdge3 && armed1) {
       if (peopleIn > 0) peopleIn--;
       lastTriggerTime = now;
       armed1 = armed2 = armed3 = false;

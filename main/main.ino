@@ -75,6 +75,13 @@ void loop() {
 
   updateCounter(getD1(), getD2(), getD3());
 
+  // Print status every 500ms
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 500) {
+    printCounterStatus();
+    lastPrint = millis();
+  }
+
 
   // Small delay to keep the loop stable
   // delay(10);
