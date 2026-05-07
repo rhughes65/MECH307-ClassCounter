@@ -46,6 +46,8 @@ void tofSetup() {
     Serial.println(F("Failed to boot first VL53L0X"));
     while(1);
   }
+  // Set to High Speed mode (20ms timing budget)
+  lox1.setMeasurementTimingBudgetMicroSeconds(20000);
   #endif
 
   #if NUM_TOF_SENSORS >= 2
@@ -55,6 +57,7 @@ void tofSetup() {
     Serial.println(F("Failed to boot second VL53L0X"));
     while(1);
   }
+  lox2.setMeasurementTimingBudgetMicroSeconds(20000);
   #endif
 
   #if NUM_TOF_SENSORS >= 3
@@ -64,6 +67,7 @@ void tofSetup() {
     Serial.println(F("Failed to boot third VL53L0X"));
     while(1);
   }
+  lox3.setMeasurementTimingBudgetMicroSeconds(20000);
   #endif
 }
 

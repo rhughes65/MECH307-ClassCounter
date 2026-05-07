@@ -77,5 +77,5 @@ void loop() {
 
 
   // Small delay to keep the loop stable
-  delay(10);
+  // delay(10);
 }
