@@ -20,6 +20,7 @@ int idx1 = 0, idx2 = 0, idx3 = 0;
 #define ARM_THRESHOLD 1500     // Distance > this means "clear" (falling from ~2000)
 #define TRIGGER_THRESHOLD 1000   // Distance <= this means "person detected"
 #define COOLDOWN 1500           // ms between counts
+#define MOTOR_STEPS_PER_EVENT 530 // Rotation per entry/exit
 
 // State tracking
 bool armed1 = false;
@@ -120,11 +121,13 @@ void updateCounter(int d1, int d2, int d3) {
       lastTriggerTime = now;
       armed1 = armed2 = false;
       Serial.println("ENTRY (S1->S2)");
+      step(-MOTOR_STEPS_PER_EVENT); // Doubled: 164 * 2
     } else if (armed2 && fallingEdge2 && armed1) {
       if (peopleIn > 0) peopleIn--;
       lastTriggerTime = now;
       armed1 = armed2 = false;
       Serial.println("EXIT (S2->S1)");
+      step(MOTOR_STEPS_PER_EVENT); // Doubled: 164 * 2
     }
     #else
     // 3 Sensors: More robust directional detection
@@ -133,11 +136,13 @@ void updateCounter(int d1, int d2, int d3) {
       lastTriggerTime = now;
       armed1 = armed2 = armed3 = false;
       Serial.println("ENTRY (S1 lead)");
+      step(-MOTOR_STEPS_PER_EVENT); // Doubled: 164 * 2
     } else if (armed3 && fallingEdge3 && armed1) {
       if (peopleIn > 0) peopleIn--;
       lastTriggerTime = now;
       armed1 = armed2 = armed3 = false;
       Serial.println("EXIT (S3 lead)");
+      step(MOTOR_STEPS_PER_EVENT); // Doubled: 164 * 2
     }
     #endif
   }
