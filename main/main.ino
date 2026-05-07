@@ -1,5 +1,8 @@
 #include "Adafruit_seesaw.h"
 
+// Configuration
+#define NUM_TOF_SENSORS 3
+
 // Global variables used by multiple modules
 int buzz = 0;
 
@@ -69,6 +72,9 @@ void loop() {
   }
 
   tofLoop();
+
+  updateCounter(getD1(), getD2(), getD3());
+
 
   // Small delay to keep the loop stable
   delay(10);

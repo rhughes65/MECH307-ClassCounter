@@ -1,103 +1,127 @@
 #include "Adafruit_VL53L0X.h"
 
+#ifndef NUM_TOF_SENSORS
+#define NUM_TOF_SENSORS 3
+#endif
+
 // Unique I2C addresses
 #define LOX1_ADDRESS 0x30
 #define LOX2_ADDRESS 0x31
 #define LOX3_ADDRESS 0x32
-// #define LOX4_ADDRESS 0x33
 
 // Your specified XSHUT pins
 #define SHT_LOX1 22
 #define SHT_LOX2 23
 #define SHT_LOX3 24
-// #define SHT_LOX4 25
 
 // Sensor objects
+#if NUM_TOF_SENSORS >= 1
 Adafruit_VL53L0X lox1 = Adafruit_VL53L0X();
+#endif
+#if NUM_TOF_SENSORS >= 2
 Adafruit_VL53L0X lox2 = Adafruit_VL53L0X();
+#endif
+#if NUM_TOF_SENSORS >= 3
 Adafruit_VL53L0X lox3 = Adafruit_VL53L0X();
-// Adafruit_VL53L0X lox4 = Adafruit_VL53L0X();
-
-void setID() {
-  // Reset all
-  digitalWrite(SHT_LOX1, LOW);    
-  digitalWrite(SHT_LOX2, LOW);
-  digitalWrite(SHT_LOX3, LOW);
-  // digitalWrite(SHT_LOX4, LOW);
-  delay(10);
-  digitalWrite(SHT_LOX1, HIGH);
-  digitalWrite(SHT_LOX2, HIGH);
-  digitalWrite(SHT_LOX3, HIGH);
-  // digitalWrite(SHT_LOX4, HIGH);
-  delay(10);
-
-  // Initialize Sensor 1
-  digitalWrite(SHT_LOX2, LOW);
-  digitalWrite(SHT_LOX3, LOW);
-  // digitalWrite(SHT_LOX4, LOW);
-  if(!lox1.begin(LOX1_ADDRESS)) while(1);
-
-  // Initialize Sensor 2
-  digitalWrite(SHT_LOX2, HIGH);
-  delay(10);
-  if(!lox2.begin(LOX2_ADDRESS)) while(1);
-
-  // Initialize Sensor 3
-  digitalWrite(SHT_LOX3, HIGH);
-  delay(10);
-  if(!lox3.begin(LOX3_ADDRESS)) while(1);
-
-  // // Initialize Sensor 4
-  // digitalWrite(SHT_LOX4, HIGH);
-  // delay(10);
-  // if(!lox4.begin(LOX4_ADDRESS)) while(1);
-}
+#endif
 
 void tofSetup() {
-  Serial.begin(115200);
-  while (!Serial) delay(1);
-
+  // 1. Initialize all possible XSHUT pins as OUTPUT and LOW
+  // This ensures unused sensors stay powered off
   pinMode(SHT_LOX1, OUTPUT);
+  digitalWrite(SHT_LOX1, LOW);
   pinMode(SHT_LOX2, OUTPUT);
+  digitalWrite(SHT_LOX2, LOW);
   pinMode(SHT_LOX3, OUTPUT);
-  // pinMode(SHT_LOX4, OUTPUT);
+  digitalWrite(SHT_LOX3, LOW);
+  
+  delay(10);
 
-  setID();
+  // 2. Initialize active sensors one by one
+  
+  #if NUM_TOF_SENSORS >= 1
+  digitalWrite(SHT_LOX1, HIGH);
+  delay(10);
+  if(!lox1.begin(LOX1_ADDRESS)) {
+    Serial.println(F("Failed to boot first VL53L0X"));
+    while(1);
+  }
+  #endif
 
-  // Header format per your example
-  Serial.println(F("# Optional header defines series names"));
-  Serial.println(F("# time(ms), sensor1(mm), sensor2(mm), sensor3(mm), sensor4(mm)"));
+  #if NUM_TOF_SENSORS >= 2
+  digitalWrite(SHT_LOX2, HIGH);
+  delay(10);
+  if(!lox2.begin(LOX2_ADDRESS)) {
+    Serial.println(F("Failed to boot second VL53L0X"));
+    while(1);
+  }
+  #endif
+
+  #if NUM_TOF_SENSORS >= 3
+  digitalWrite(SHT_LOX3, HIGH);
+  delay(10);
+  if(!lox3.begin(LOX3_ADDRESS)) {
+    Serial.println(F("Failed to boot third VL53L0X"));
+    while(1);
+  }
+  #endif
 }
 
+int d1 = 0;
+int d2 = 0;
+int d3 = 0;
+int getD1() { return d1; }
+int getD2() { return d2; }
+int getD3() { return d3; }
+
 void tofLoop() {
-  VL53L0X_RangingMeasurementData_t m1, m2, m3;
-  
-  lox1.rangingTest(&m1, false);
-  lox2.rangingTest(&m2, false);
-  lox3.rangingTest(&m3, false);
-  // lox4.rangingTest(&m4, false);
+  VL53L0X_RangingMeasurementData_t measure;
 
-  // Extract distance values
-  int d1 = (m1.RangeStatus != 4) ? m1.RangeMilliMeter : 0;
-  int d2 = (m2.RangeStatus != 4) ? m2.RangeMilliMeter : 0;
-  int d3 = (m3.RangeStatus != 4) ? m3.RangeMilliMeter : 0;
+  #if NUM_TOF_SENSORS >= 1
+  lox1.rangingTest(&measure, false);
+  // Status 4 is out of range. 8190+ is also usually out of range.
+  // Map these to a stable high value (2000mm) instead of 0.
+  if (measure.RangeStatus == 4 || measure.RangeMilliMeter > 2000) d1 = 2000;
+  else d1 = measure.RangeMilliMeter;
+  #else
+  d1 = 2000;
+  #endif
 
-  // Data format: time, val1, val2, val3, val4
-  Serial.print(millis());
-  Serial.print(F(", "));
-  
+  #if NUM_TOF_SENSORS >= 2
+  lox2.rangingTest(&measure, false);
+  if (measure.RangeStatus == 4 || measure.RangeMilliMeter > 2000) d2 = 2000;
+  else d2 = measure.RangeMilliMeter;
+  #else
+  d2 = 2000;
+  #endif
+
+  #if NUM_TOF_SENSORS >= 3
+  lox3.rangingTest(&measure, false);
+  if (measure.RangeStatus == 4 || measure.RangeMilliMeter > 2000) d3 = 2000;
+  else d3 = measure.RangeMilliMeter;
+  #else
+  d3 = 2000;
+  #endif
+
+  logTOF();
+}
+
+void logTOF() {
+  // Format for Arduino Serial Plotter: Label1:Value1,Label2:Value2,...
+  #if NUM_TOF_SENSORS >= 1
+  Serial.print(F("S1:"));
   Serial.print(d1);
-  Serial.print(F(", "));
+  #endif
+  
+  #if NUM_TOF_SENSORS >= 2
+  Serial.print(F(",S2:"));
   Serial.print(d2);
-  Serial.print(F(", "));
+  #endif
+  
+  #if NUM_TOF_SENSORS >= 3
+  Serial.print(F(",S3:"));
   Serial.print(d3);
-  // Serial.print(F(", "));
-  // Serial.print((m4.RangeStatus != 4) ? m4.RangeMilliMeter : 0);
+  #endif
 
-  Serial.println("");
-
-  // Update people counter with sensor data
-  updateCounter(d1, d2, d3);
-
-  delay(100);
+  Serial.println();
 }

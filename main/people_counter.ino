@@ -1,108 +1,163 @@
 // People Counter Module
 // Detects entry/exit using ToF sensors and maintains occupancy count
 
+#ifndef NUM_TOF_SENSORS
+#define NUM_TOF_SENSORS 3
+#endif
+
 // Counter variables
 volatile int peopleIn = 0;        // Current occupancy
 volatile int totalPeople = 0;     // Cumulative count for the day
 
-// Detection state tracking
-volatile int lastD1 = 0;
-volatile int lastD2 = 0;
-volatile int lastD3 = 0;
+// Filtering Configuration
+#define WINDOW_SIZE 3
+int distances1[WINDOW_SIZE];
+int distances2[WINDOW_SIZE];
+int distances3[WINDOW_SIZE];
+int idx1 = 0, idx2 = 0, idx3 = 0;
 
-// Configuration
-#define DOOR_DISTANCE_THRESHOLD 800  // mm - adjust based on your doorway
-#define HYSTERESIS 50                // mm - prevents jitter
-#define DETECTION_TIMEOUT 2000       // ms - time window for entry/exit
+// Logic Thresholds (adjust these based on your doorway)
+#define ARM_THRESHOLD 800     // Distance > this means "clear"
+#define TRIGGER_THRESHOLD 400   // Distance <= this means "person detected"
+#define COOLDOWN 1500           // ms between counts
 
-volatile unsigned long lastDetectionTime = 0;
-volatile bool detectionInProgress = false;
+// State tracking
+bool armed1 = false;
+bool armed2 = false;
+bool armed3 = false;
+unsigned long lastTriggerTime = 0;
+int lastMedian1 = 0;
+int lastMedian2 = 0;
+int lastMedian3 = 0;
 
 void counterSetup() {
-  Serial.println("People Counter initialized");
+  // Initialize filter buffers with a "clear" value
+  for(int i=0; i<WINDOW_SIZE; i++) {
+    distances1[i] = distances2[i] = distances3[i] = ARM_THRESHOLD + 100;
+  }
+  Serial.println("People Counter initialized with Median Filtering");
+}
+
+// Simple bubble sort for median calculation
+void sortDistances(int a[], int n) {
+  for (int i = 0; i < n - 1; ++i) {
+    for (int j = 0; j < n - 1 - i; ++j) {
+      if (a[j] > a[j + 1]) {
+        int temp = a[j];
+        a[j] = a[j + 1];
+        a[j + 1] = temp;
+      }
+    }
+  }
+}
+
+int getMedian(int rawValue, int buffer[], int &idx) {
+  if (rawValue > 0) {
+    buffer[idx] = rawValue;
+    idx = (idx + 1) % WINDOW_SIZE;
+  }
+  
+  int sortBuffer[WINDOW_SIZE];
+  for(int i = 0; i < WINDOW_SIZE; i++) sortBuffer[i] = buffer[i];
+  sortDistances(sortBuffer, WINDOW_SIZE);
+  return sortBuffer[WINDOW_SIZE / 2];
 }
 
 void updateCounter(int d1, int d2, int d3) {
-  // Check if we have valid readings (0 means invalid)
-  if (d1 == 0 || d2 == 0 || d3 == 0) return;
+  unsigned long now = millis();
+  
+  // 1. Get filtered values
+  int m1 = getMedian(d1, distances1, idx1);
+  int m2 = getMedian(d2, distances2, idx2);
+  int m3 = getMedian(d3, distances3, idx3);
 
-  unsigned long currentTime = millis();
+  // 2. Logic based on number of sensors
+  #if NUM_TOF_SENSORS == 1
+  // --- SINGLE SENSOR FALLING EDGE LOGIC ---
   
-  // Check if person is detected (any sensor below threshold)
-  bool d1Detected = (d1 < DOOR_DISTANCE_THRESHOLD);
-  bool d2Detected = (d2 < DOOR_DISTANCE_THRESHOLD);
-  bool d3Detected = (d3 < DOOR_DISTANCE_THRESHOLD);
-  
-  int detectedCount = (d1Detected ? 1 : 0) + (d2Detected ? 1 : 0) + (d3Detected ? 1 : 0);
-  
-  // High confidence detection: 2+ sensors triggered
-  if (detectedCount >= 2) {
-    if (!detectionInProgress) {
-      detectionInProgress = true;
-      lastDetectionTime = currentTime;
-      
-      // Determine direction based on which sensors are triggered
-      // Front sensor (d1) closer = entering
-      // Back sensor (d3) closer = exiting
-      if (d1Detected && !d3Detected) {
-        // Person entering
-        peopleIn++;
-        totalPeople++;
-        Serial.print("ENTRY DETECTED - People in room: ");
-        Serial.print(peopleIn);
-        Serial.print(", Total: ");
-        Serial.println(totalPeople);
-      } 
-      else if (d3Detected && !d1Detected) {
-        // Person exiting
-        if (peopleIn > 0) {
-          peopleIn--;
-        }
-        Serial.print("EXIT DETECTED - People in room: ");
-        Serial.print(peopleIn);
-        Serial.print(", Total: ");
-        Serial.println(totalPeople);
-      }
-      else if (d1Detected && d3Detected) {
-        // Both ends triggered - ambiguous, default to entry
-        peopleIn++;
-        totalPeople++;
-        Serial.print("AMBIGUOUS DETECTION - Counted as entry. People in room: ");
-        Serial.println(peopleIn);
-      }
-    }
-  } 
-  else if (detectionInProgress && (currentTime - lastDetectionTime) > DETECTION_TIMEOUT) {
-    // Reset detection after timeout
-    detectionInProgress = false;
+  // Arming: distance goes high (door is clear)
+  if (m1 > ARM_THRESHOLD) {
+    armed1 = true;
+  }
+
+  // Trigger: distance falls below threshold while armed
+  bool fallingEdge = (lastMedian1 > TRIGGER_THRESHOLD && m1 <= TRIGGER_THRESHOLD);
+  bool cooldownOver = (now - lastTriggerTime >= COOLDOWN);
+
+  if (armed1 && fallingEdge && cooldownOver) {
+    peopleIn++;
+    totalPeople++;
+    lastTriggerTime = now;
+    armed1 = false; // Disarm until clear again
+    
+    Serial.print("DETECTION (Single Sensor) - People in room: ");
+    Serial.println(peopleIn);
   }
   
-  // Store current readings
-  lastD1 = d1;
-  lastD2 = d2;
-  lastD3 = d3;
+  #else
+  // --- MULTI-SENSOR DIRECTIONAL LOGIC ---
+  // (Uses similar arming principle but looks for sequences)
+  
+  if (m1 > ARM_THRESHOLD) armed1 = true;
+  if (m2 > ARM_THRESHOLD) armed2 = true;
+  if (m3 > ARM_THRESHOLD) armed3 = true;
+
+  bool fallingEdge1 = (lastMedian1 > TRIGGER_THRESHOLD && m1 <= TRIGGER_THRESHOLD);
+  bool fallingEdge2 = (lastMedian2 > TRIGGER_THRESHOLD && m2 <= TRIGGER_THRESHOLD);
+  bool fallingEdge3 = (lastMedian3 > TRIGGER_THRESHOLD && m3 <= TRIGGER_THRESHOLD);
+  
+  bool cooldownOver = (now - lastTriggerTime >= COOLDOWN);
+
+  if (cooldownOver) {
+    #if NUM_TOF_SENSORS == 2
+    // 2 Sensors: Check if sensor 1 triggers before sensor 2
+    if (armed1 && fallingEdge1 && !armed2) {
+      peopleIn++; totalPeople++;
+      lastTriggerTime = now;
+      armed1 = armed2 = false;
+      Serial.println("ENTRY (S1->S2)");
+    } else if (armed2 && fallingEdge2 && !armed1) {
+      if (peopleIn > 0) peopleIn--;
+      lastTriggerTime = now;
+      armed1 = armed2 = false;
+      Serial.println("EXIT (S2->S1)");
+    }
+    #else
+    // 3 Sensors: More robust directional detection
+    if (armed1 && fallingEdge1 && !armed3) {
+      peopleIn++; totalPeople++;
+      lastTriggerTime = now;
+      armed1 = armed2 = armed3 = false;
+      Serial.println("ENTRY (S1 lead)");
+    } else if (armed3 && fallingEdge3 && !armed1) {
+      if (peopleIn > 0) peopleIn--;
+      lastTriggerTime = now;
+      armed1 = armed2 = armed3 = false;
+      Serial.println("EXIT (S3 lead)");
+    }
+    #endif
+  }
+  #endif
+
+  // Store for next iteration
+  lastMedian1 = m1;
+  lastMedian2 = m2;
+  lastMedian3 = m3;
 }
 
 void resetCounter() {
   peopleIn = 0;
   totalPeople = 0;
-  detectionInProgress = false;
+  armed1 = armed2 = armed3 = false;
   Serial.println("Counter reset!");
-  printCounterStatus();
 }
 
-int getPeopleInRoom() {
-  return peopleIn;
-}
-
-int getTotalPeopleCount() {
-  return totalPeople;
-}
+int getPeopleInRoom() { return peopleIn; }
+int getTotalPeopleCount() { return totalPeople; }
 
 void printCounterStatus() {
-  Serial.print("=== COUNTER STATUS ===");
-  Serial.print(" | People in room: ");
+  Serial.print("Occupancy: ");
   Serial.print(peopleIn);
-  Serial.print(" | Total today: ");
+  Serial.print(" | Total: ");
   Serial.println(totalPeople);
 }
