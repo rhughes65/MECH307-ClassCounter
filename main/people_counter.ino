@@ -20,7 +20,7 @@ int idx1 = 0, idx2 = 0, idx3 = 0;
 #define ARM_THRESHOLD 1500     // Distance > this means "clear" (falling from ~2000)
 #define TRIGGER_THRESHOLD 1000   // Distance <= this means "person detected"
 #define COOLDOWN 1500           // ms between counts
-#define MOTOR_STEPS_PER_EVENT 530 // Rotation per entry/exit
+#define MOTOR_STEPS_PER_EVENT 510 // Rotation per entry/exit
 
 // State tracking
 bool armed1 = false;
